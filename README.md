@@ -101,6 +101,28 @@ Only WAV is read natively. For other formats (MP3, FLAC, OGG), load the audio yo
 
 Each tool has a `name`, a `description`, and `parameters` as a JSON Schema object. You can pass the list directly or as a JSON string. The model only knows what you tell it about each tool, so clear names and descriptions do most of the work. When an argument has a fixed set of values, like the rooms above, list them with `enum`.
 
+### Live microphone
+
+`examples/realtime_example.py` listens to your microphone and prints the tool calls for each command as soon as you stop talking. It needs [sounddevice](https://python-sounddevice.readthedocs.io/):
+
+```bash
+pip install sounddevice
+python examples/realtime_example.py
+```
+
+It first measures the background noise for a second, so stay quiet until it says it's listening. Then speak a command, such as "clean the kitchen". Press Ctrl+C to stop.
+
+The model takes a whole utterance, so the example splits the microphone stream by loudness. An utterance starts when the input rises 12 dB above the background level and ends after a 0.5 s pause. Utterances with less than 0.2 s of speech are dropped. This gate matters because the model produces a call even for noise. Audio is captured at the device's own sample rate and passed to `generate` with `sample_rate=`.
+
+| Option | Default | Use it when |
+|---|---|---|
+| `--tools` | `examples/tools.json` | You want your own tool list |
+| `--threshold` | measured at start | Speech isn't picked up (lower it, e.g. `-50`) or noise is (raise it), in dBFS |
+| `--margin` | `12` | The measured threshold needs to sit further above the background (dB) |
+| `--silence-ms` | `500` | Commands get cut off mid-sentence (raise it) |
+| `--device` | system default | You want another input (an index or name from `python -m sounddevice`) |
+| `--wav` | | You want to test without a microphone: a WAV file goes through the same pipeline |
+
 ## How it works
 
 NeuDecide is a pre-trained streaming English speech encoder joined to a compact tool-calling encoder–decoder, initialised from [Needle](https://github.com/cactus-compute/needle), and trained end to end as one system. Inference runs three ONNX graphs:
