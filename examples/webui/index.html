@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeuDecide Live</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f6f6f3;
+    --panel: #ffffff;
+    --line: #e3e2dc;
+    --text: #1d1d1b;
+    --muted: #6d6c66;
+    --accent: #d70a2b;
+    --accent-soft: #fbe3e6;
+    --speech: #d70a2b;
+    --level: #b9b7ae;
+    --threshold: #c27c00;
+    --ok: #237a4b;
+    --code-bg: #f3f2ee;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413;
+      --panel: #1e1e1c;
+      --line: #33332f;
+      --text: #ecebe6;
+      --muted: #9a9890;
+      --accent: #ff4d63;
+      --accent-soft: #3a1c21;
+      --speech: #ff4d63;
+      --level: #5b5a54;
+      --threshold: #e7a83a;
+      --ok: #5cc28c;
+      --code-bg: #262623;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Segoe UI", sans-serif;
+  }
+  code, pre, textarea { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  header {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 20px 24px 8px;
+  }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 16px;
+    padding: 12px 24px 32px;
+    align-items: start;
+  }
+  .column { display: grid; gap: 16px; min-width: 0; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  h2 {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 0 0 12px; min-height: 30px;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  h2 .button { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 13px; padding: 4px 10px; }
+
+  /* controls */
+  .controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .mic {
+    width: 72px; height: 72px; border-radius: 50%;
+    border: 0; cursor: pointer;
+    background: var(--text); color: var(--bg);
+    display: grid; place-items: center;
+    position: relative; flex: none;
+    transition: background 0.15s;
+  }
+  .mic svg { width: 30px; height: 30px; }
+  .mic.live { background: var(--accent); color: #fff; }
+  .mic.live.speech::after {
+    content: ""; position: absolute; inset: -6px; border-radius: 50%;
+    border: 3px solid var(--accent); opacity: 0.5;
+    animation: pulse 1s ease-out infinite;
+  }
+  @keyframes pulse { from { transform: scale(0.95); opacity: 0.6; } to { transform: scale(1.15); opacity: 0; } }
+  .control-text { flex: 1; min-width: 200px; }
+  .status { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--level); flex: none; }
+  .status[data-kind="listening"] .dot { background: var(--ok); }
+  .status[data-kind="speech"] .dot, .status[data-kind="thinking"] .dot { background: var(--accent); }
+  .status[data-kind="calibrating"] .dot, .status[data-kind="connecting"] .dot { background: var(--threshold); }
+  .status[data-kind="error"] { color: var(--accent); }
+  .status[data-kind="error"] .dot { background: var(--accent); }
+  .detail { color: var(--muted); font-size: 14px; margin-top: 2px; min-height: 21px; }
+  .button {
+    font: inherit; font-size: 14px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel); color: var(--text);
+    padding: 7px 12px; cursor: pointer;
+  }
+  .button:hover { border-color: var(--muted); }
+  .button.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .file input { display: none; }
+
+  /* meter */
+  .meter-wrap { margin-top: 18px; }
+  canvas { width: 100%; height: 140px; display: block; border-radius: 8px; background: var(--code-bg); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legend span::before {
+    content: ""; display: inline-block; width: 10px; height: 3px; margin-right: 6px;
+    vertical-align: middle; background: var(--c);
+  }
+
+  /* results */
+  .results { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .result { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .result.fresh { animation: fresh 1.2s ease-out; }
+  @keyframes fresh { from { background: var(--accent-soft); } to { background: transparent; } }
+  .result-head { display: flex; gap: 12px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .result-head .ms { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .calls { margin: 8px 0; display: grid; gap: 4px; }
+  .call { font-size: 16px; overflow-wrap: break-word; }
+  .call .fn { font-weight: 700; }
+  .call .key { color: var(--muted); }
+  .call .val { color: var(--accent); }
+  .none { color: var(--muted); font-style: italic; }
+  .result-foot { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .result audio { height: 32px; max-width: 100%; }
+  details summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+  pre { margin: 6px 0 0; padding: 10px; background: var(--code-bg); border-radius: 8px; font-size: 12px; overflow-x: auto; }
+  .empty { color: var(--muted); margin: 0; }
+
+  /* settings */
+  .field { margin-bottom: 14px; }
+  .field label { display: flex; justify-content: space-between; font-size: 14px; }
+  .field output { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .field small { display: block; color: var(--muted); font-size: 12px; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  input[type="range"]:disabled { opacity: 0.4; }
+  .field label.check { justify-content: flex-start; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .readout { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+
+  /* tools */
+  textarea {
+    width: 100%; min-height: 260px; resize: vertical;
+    font-size: 12px; line-height: 1.45;
+    background: var(--code-bg); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--code-bg); border: 1px solid var(--line); }
+  .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+  .msg { font-size: 13px; color: var(--muted); }
+  .msg.bad { color: var(--accent); }
+
+  @media (max-width: 860px) {
+    main { grid-template-columns: minmax(0, 1fr); padding: 8px 16px 24px; }
+    header { padding: 16px 16px 4px; flex-direction: column; gap: 2px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>NeuDecide Live</h1>
+  <p>英語で命令を話すと、モデルが選んだツール呼び出しを表示します。</p>
+</header>
+
+<main>
+  <div class="column">
+    <section class="panel">
+      <div class="controls">
+        <button id="mic" class="mic" aria-label="マイクを開始" title="マイクを開始">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><path d="M12 18v4"/>
+          </svg>
+        </button>
+        <div class="control-text">
+          <div id="status" class="status" data-kind="idle"><span class="dot"></span><span id="status-text">準備完了</span></div>
+          <div id="detail" class="detail">マイクのボタンを押すと始まります。</div>
+        </div>
+        <label class="button file" title="マイクの代わりに WAV ファイルを同じ処理に流します">
+          ファイルで試す<input id="file" type="file" accept="audio/*,.wav">
+        </label>
+      </div>
+      <div class="meter-wrap">
+        <canvas id="meter" aria-label="直近数秒の入力音量"></canvas>
+        <div class="legend">
+          <span style="--c: var(--level)">入力音量</span>
+          <span style="--c: var(--speech)">発話</span>
+          <span style="--c: var(--threshold)">発話のしきい値</span>
+          <span id="readout"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>呼び出し結果 <button id="clear" class="button" hidden>クリア</button></h2>
+      <p id="empty" class="empty">話した命令ごとに、モデルが選んだツール呼び出しがここに表示されます。</p>
+      <ol id="results" class="results"></ol>
+    </section>
+  </div>
+
+  <div class="column">
+    <section class="panel">
+      <h2>発話の検出</h2>
+      <div class="field">
+        <label for="margin">背景雑音との差 <output id="margin-out"></output></label>
+        <input id="margin" type="range" min="3" max="30" step="1" value="12">
+        <small>雑音を発話と判定してしまうときは上げてください。</small>
+      </div>
+      <div class="field">
+        <label for="silence">命令の区切りとみなす無音 <output id="silence-out"></output></label>
+        <input id="silence" type="range" min="200" max="1500" step="50" value="500">
+        <small>言い終わる前に区切られるときは長くしてください。</small>
+      </div>
+      <div class="field">
+        <label class="check"><input id="manual" type="checkbox"> しきい値を手動で設定する</label>
+        <label for="threshold">しきい値 <output id="threshold-out"></output></label>
+        <input id="threshold" type="range" min="-80" max="-10" step="1" value="-45" disabled>
+      </div>
+      <button id="recalibrate" class="button" disabled>背景雑音を測り直す</button>
+    </section>
+
+    <section class="panel">
+      <h2>ツール定義</h2>
+      <div id="chips" class="chips"></div>
+      <textarea id="tools" spellcheck="false" aria-label="ツール定義（JSON）"></textarea>
+      <div class="row">
+        <button id="apply" class="button primary">適用</button>
+        <button id="reset" class="button">初期値に戻す</button>
+        <span id="tools-msg" class="msg"></span>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const HISTORY = 200; // level bars kept: 200 x 30 ms = 6 s
+const state = {
+  ws: null, ctx: null, stream: null, mode: null, fileTimer: null,
+  threshold: null, noise: null, levels: [], tools: [], defaultTools: [],
+};
+
+// ---- status ---------------------------------------------------------------
+
+function setStatus(kind, text, detail = "") {
+  $("status").dataset.kind = kind;
+  $("status-text").textContent = text;
+  $("detail").textContent = detail;
+  $("mic").classList.toggle("speech", kind === "speech");
+}
+
+function setLive(live) {
+  const mic = $("mic");
+  mic.classList.toggle("live", live && state.mode === "mic");
+  const label = live && state.mode === "mic" ? "マイクを停止" : "マイクを開始";
+  mic.setAttribute("aria-label", label);
+  mic.title = label;
+  $("recalibrate").disabled = !live;
+}
+
+function showReadout() {
+  const parts = [];
+  if (state.threshold !== null) parts.push(`しきい値 ${state.threshold.toFixed(0)} dBFS`);
+  if (state.noise !== null) {
+    parts.push(state.noise < -100 ? "背景雑音 なし（無音）" : `背景雑音 ${state.noise.toFixed(0)} dBFS`);
+  }
+  $("readout").textContent = parts.join(" · ");
+}
+
+// ---- settings -------------------------------------------------------------
+
+function settings() {
+  return {
+    margin: Number($("margin").value),
+    silenceMs: Number($("silence").value),
+    threshold: $("manual").checked ? Number($("threshold").value) : null,
+  };
+}
+
+function showSettings() {
+  $("margin-out").textContent = `${$("margin").value} dB`;
+  $("silence-out").textContent = `${$("silence").value} ms`;
+  $("threshold-out").textContent = `${$("threshold").value} dBFS`;
+  $("threshold").disabled = !$("manual").checked;
+  $("margin").disabled = $("manual").checked;
+}
+
+function send(message) {
+  if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+    state.ws.send(message instanceof Float32Array ? message.buffer : JSON.stringify(message));
+  }
+}
+
+for (const id of ["margin", "silence", "threshold"]) $(id).addEventListener("input", showSettings);
+for (const id of ["margin", "silence", "threshold", "manual"]) {
+  $(id).addEventListener("change", () => {
+    showSettings();
+    send({ type: "settings", ...settings() });
+  });
+}
+$("recalibrate").addEventListener("click", () => send({ type: "calibrate" }));
+
+// ---- tools ----------------------------------------------------------------
+
+function parseTools(text) {
+  let tools;
+  try {
+    tools = JSON.parse(text);
+  } catch (e) {
+    throw new Error(`JSON として読み込めません: ${e.message}`);
+  }
+  if (!Array.isArray(tools) || !tools.every((t) => t && typeof t === "object" && typeof t.name === "string")) {
+    throw new Error('ツール定義は、各要素に "name" を持つ JSON の配列にしてください。');
+  }
+  return tools;
+}
+
+function toolsMessage(text, bad = false) {
+  $("tools-msg").textContent = text;
+  $("tools-msg").classList.toggle("bad", bad);
+}
+
+function showChips() {
+  $("chips").replaceChildren(...state.tools.map((t) => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = t.name;
+    chip.title = t.description || "";
+    return chip;
+  }));
+}
+
+function applyTools() {
+  try {
+    state.tools = parseTools($("tools").value);
+  } catch (e) {
+    toolsMessage(e.message, true);
+    return;
+  }
+  showChips();
+  toolsMessage(`${state.tools.length} 個のツールを使用中`);
+  send({ type: "settings", tools: state.tools });
+}
+
+$("apply").addEventListener("click", applyTools);
+$("reset").addEventListener("click", () => {
+  $("tools").value = JSON.stringify(state.defaultTools, null, 2);
+  applyTools();
+});
+$("tools").addEventListener("input", () => toolsMessage("未適用の変更があります"));
+
+// ---- sessions -------------------------------------------------------------
+
+function openSession(sampleRate) {
+  return new Promise((resolve, reject) => {
+    const scheme = location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(`${scheme}://${location.host}/ws`);
+    ws.binaryType = "arraybuffer";
+    ws.onopen = () => {
+      state.ws = ws;
+      send({ type: "start", sampleRate, tools: state.tools, ...settings() });
+      resolve(ws);
+    };
+    ws.onerror = () => reject(new Error("サーバーに接続できません。webui_example.py が起動しているか確認してください。"));
+    ws.onmessage = (e) => handle(JSON.parse(e.data));
+    ws.onclose = () => {
+      if (state.ws === ws) stop("error", "切断されました", "サーバーとの接続が切れました。");
+    };
+  });
+}
+
+async function stop(kind = "idle", text = "停止中", detail = "マイクのボタンを押すと再開します。") {
+  clearTimeout(state.fileTimer);
+  const { ws, stream, ctx } = state;
+  Object.assign(state, { ws: null, stream: null, ctx: null, mode: null, fileTimer: null });
+  if (ws) ws.close();
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  if (ctx) await ctx.close().catch(() => {});
+  setLive(false);
+  setStatus(kind, text, detail);
+}
+
+async function startMic() {
+  await stop();
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setStatus("error", "マイクを使えません", "ブラウザがマイクを許可するのは https:// か http://localhost のページだけです。");
+    return;
+  }
+  setStatus("connecting", "開始しています…", "ブラウザに聞かれたら、マイクの使用を許可してください。");
+  try {
+    // Raw input: the browser's echo cancellation, noise suppression and gain control
+    // change the audio the model hears and the levels the threshold is set from.
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    });
+    const ctx = new AudioContext();
+    Object.assign(state, { stream, ctx, mode: "mic" });
+    await ctx.audioWorklet.addModule("/capture-worklet.js");
+    const node = new AudioWorkletNode(ctx, "capture");
+    ctx.createMediaStreamSource(stream).connect(node);
+    node.connect(ctx.destination); // silent; keeps the graph running
+    await openSession(ctx.sampleRate);
+    node.port.onmessage = (e) => send(e.data);
+    setLive(true);
+  } catch (e) {
+    const detail = e.name === "NotAllowedError"
+      ? "マイクの使用がブロックされています。ブラウザのサイト設定で許可してください。"
+      : e.message;
+    await stop("error", "開始できませんでした", detail);
+  }
+}
+
+async function startFile(file) {
+  await stop();
+  setStatus("connecting", "ファイルを読み込んでいます…", file.name);
+  const ctx = new AudioContext();
+  let audio;
+  try {
+    audio = await ctx.decodeAudioData(await file.arrayBuffer());
+  } catch {
+    await ctx.close();
+    setStatus("error", "ファイルを読み込めませんでした", `${file.name} はブラウザで再生できる音声ファイルではありません。`);
+    return;
+  }
+  const sr = audio.sampleRate;
+  const mono = new Float32Array(audio.length);
+  for (let c = 0; c < audio.numberOfChannels; c++) {
+    audio.getChannelData(c).forEach((v, i) => { mono[i] += v / audio.numberOfChannels; });
+  }
+  // A second of silence first, to set the threshold from, and a pause after that's long
+  // enough to end the last command.
+  const lead = sr;
+  const tail = Math.round(sr * Math.max(1, settings().silenceMs / 1000 + 0.5));
+  const samples = new Float32Array(lead + mono.length + tail);
+  samples.set(mono, lead);
+
+  Object.assign(state, { ctx, mode: "file" });
+  try {
+    await openSession(sr);
+  } catch (e) {
+    await stop("error", "開始できませんでした", e.message);
+    return;
+  }
+  setLive(true);
+
+  // Play it out loud in step with what's sent, at real time.
+  const buffer = ctx.createBuffer(1, samples.length, sr);
+  buffer.copyToChannel(samples, 0);
+  const player = ctx.createBufferSource();
+  player.buffer = buffer;
+  player.connect(ctx.destination);
+  player.start();
+
+  const block = Math.round(sr * 0.03);
+  const t0 = performance.now();
+  let i = 0;
+  const tick = () => {
+    if (state.mode !== "file") return;
+    const due = Math.min(samples.length, Math.floor(((performance.now() - t0) / 1000) * sr));
+    while (i + block <= due) {
+      send(samples.slice(i, i + block));
+      i += block;
+    }
+    if (i + block > samples.length) {
+      state.fileTimer = setTimeout(() => stop("idle", "完了", `${file.name} を最後まで流しました。`), 1500);
+    } else {
+      state.fileTimer = setTimeout(tick, 30);
+    }
+  };
+  tick();
+}
+
+$("mic").addEventListener("click", () => (state.mode === "mic" ? stop() : startMic()));
+$("file").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (file) startFile(file);
+});
+
+// ---- events from the server ----------------------------------------------
+
+function listeningText() {
+  return state.mode === "file" ? "ファイルを再生中" : "待ち受け中";
+}
+
+function handle(event) {
+  switch (event.type) {
+    case "calibrating":
+      state.threshold = null;
+      state.noise = null;
+      showReadout();
+      setStatus("calibrating", "背景雑音を測定中…", "少しのあいだ静かにしていてください。");
+      break;
+    case "listening":
+      state.threshold = event.threshold;
+      state.noise = event.noise;
+      showReadout();
+      setStatus("listening", listeningText(), "英語で命令を話して、少し黙ってください。");
+      break;
+    case "level":
+      state.levels.push(event);
+      if (state.levels.length > HISTORY) state.levels.shift();
+      requestDraw();
+      break;
+    case "speech":
+      setStatus("speech", "発話を検出しています…", "話し終えたら少し黙ってください。");
+      break;
+    case "ignored":
+      setStatus("listening", listeningText(), "短い物音として無視しました。");
+      break;
+    case "thinking":
+      setStatus("thinking", "ツール呼び出しを推論中…");
+      break;
+    case "result":
+      addResult(event);
+      setStatus("listening", listeningText(), "続けて次の命令をどうぞ。");
+      break;
+    case "error":
+      toolsMessage(`サーバーがツール定義を受け付けませんでした: ${event.message}`, true);
+      break;
+  }
+}
+
+// ---- level meter ----------------------------------------------------------
+
+const MIN_DB = -90;
+let drawPending = false;
+
+function requestDraw() {
+  if (!drawPending) {
+    drawPending = true;
+    requestAnimationFrame(draw);
+  }
+}
+
+function draw() {
+  drawPending = false;
+  const canvas = $("meter");
+  const css = getComputedStyle(document.documentElement);
+  const color = (name) => css.getPropertyValue(name).trim();
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+  }
+  const g = canvas.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const y = (db) => h * (1 - (Math.min(0, Math.max(MIN_DB, db)) - MIN_DB) / -MIN_DB);
+
+  const grid = [-20, -40, -60, -80];
+  g.strokeStyle = color("--line");
+  g.lineWidth = 1;
+  for (const db of grid) {
+    g.beginPath();
+    g.moveTo(0, y(db) + 0.5);
+    g.lineTo(w, y(db) + 0.5);
+    g.stroke();
+  }
+
+  const barW = w / HISTORY;
+  state.levels.forEach((level, i) => {
+    const x = w - (state.levels.length - i) * barW;
+    g.fillStyle = level.speech ? color("--speech") : color("--level");
+    g.fillRect(x, y(level.db), Math.max(1, barW - 1), h - y(level.db));
+  });
+
+  if (state.threshold !== null) {
+    g.strokeStyle = color("--threshold");
+    g.lineWidth = 2;
+    g.setLineDash([6, 4]);
+    g.beginPath();
+    g.moveTo(0, y(state.threshold));
+    g.lineTo(w, y(state.threshold));
+    g.stroke();
+    g.setLineDash([]);
+  }
+
+  g.font = "10px system-ui, sans-serif";
+  g.fillStyle = color("--muted");
+  g.strokeStyle = color("--code-bg");
+  g.lineWidth = 3;
+  for (const db of grid) {
+    g.strokeText(`${db}`, 4, y(db) - 3);
+    g.fillText(`${db}`, 4, y(db) - 3);
+  }
+}
+
+window.addEventListener("resize", requestDraw);
+
+// ---- results --------------------------------------------------------------
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function callNode(call) {
+  const line = el("code", "call");
+  line.append(el("span", "fn", call.name), "(");
+  Object.entries(call.arguments || {}).forEach(([key, value], i) => {
+    if (i) line.append(", ");
+    line.append(el("span", "key", `${key}=`), el("span", "val", JSON.stringify(value)));
+  });
+  line.append(")");
+  return line;
+}
+
+function addResult(event) {
+  const item = el("li", "result fresh");
+  const head = el("div", "result-head");
+  head.append(
+    el("span", "", new Date().toLocaleTimeString("ja-JP")),
+    el("span", "", `発話 ${event.seconds.toFixed(1)} 秒`),
+    el("span", "ms", `推論 ${Math.round(event.ms)} ms`),
+  );
+  const calls = el("div", "calls");
+  if (event.calls.length) calls.append(...event.calls.map(callNode));
+  else calls.append(el("span", "none", "該当するツールなし"));
+
+  const foot = el("div", "result-foot");
+  const audio = el("audio");
+  audio.controls = true;
+  audio.preload = "none";
+  audio.src = `data:audio/wav;base64,${event.audio}`;
+  const details = el("details");
+  details.append(el("summary", "", "JSON を表示"), el("pre", "", JSON.stringify(event.calls, null, 2)));
+  foot.append(audio, details);
+
+  item.append(head, calls, foot);
+  $("results").prepend(item);
+  $("empty").hidden = true;
+  $("clear").hidden = false;
+}
+
+$("clear").addEventListener("click", () => {
+  $("results").replaceChildren();
+  $("empty").hidden = false;
+  $("clear").hidden = true;
+});
+
+// ---- start ----------------------------------------------------------------
+
+showSettings();
+draw();
+fetch("/api/tools")
+  .then((r) => r.json())
+  .then((tools) => {
+    state.defaultTools = tools;
+    $("tools").value = JSON.stringify(tools, null, 2);
+    applyTools();
+  })
+  .catch(() => toolsMessage("初期のツール定義を読み込めませんでした。", true));
+</script>
+</body>
+</html>

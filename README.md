@@ -124,6 +124,18 @@ The model takes a whole utterance, so the example splits the microphone stream b
 | `--device` | system default | You want another input (an index or name from `uv run --with sounddevice python -m sounddevice`) |
 | `--wav` | | You want to test without a microphone: a WAV file goes through the same pipeline |
 
+### Web UI
+
+`examples/webui_example.py` does the same in a browser page:
+
+```bash
+uv run --group webui examples/webui_example.py
+```
+
+Open http://127.0.0.1:8000 and press the microphone button. The page shows the input level against the speech threshold, and lists each command with the call the model chose, how long it took, and the audio the model heard. You can change the voice-detection settings and edit the tool list as JSON while it listens. The page is in Japanese; its **ファイルで試す** (test with a file) button streams a WAV file through the same pipeline when you have no microphone at hand.
+
+The browser captures the microphone and streams it over a WebSocket to the server, which splits it into utterances with the same loudness gate as the command-line example. Browsers only allow microphone access on `localhost` or over HTTPS, so open the page on the machine running the server. `--port`, `--host` and `--tools` change where it serves and the default tool list. To look into misses, `--save-dir DIR` keeps each utterance as a WAV file, as the model heard it, with its result in `DIR/results.jsonl`.
+
 ## How it works
 
 NeuDecide is a pre-trained streaming English speech encoder joined to a compact tool-calling encoder–decoder, initialised from [Needle](https://github.com/cactus-compute/needle), and trained end to end as one system. Inference runs three ONNX graphs:
