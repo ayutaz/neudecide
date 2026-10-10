@@ -22,6 +22,12 @@ dependencies = [
     "soxr>=0.5",
 ]
 
+[dependency-groups]
+dev = [
+    "pre-commit",
+    "pytest",
+]
+
 [tool.setuptools.packages.find]
 include = ["neudecide*"]
 

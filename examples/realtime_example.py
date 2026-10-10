@@ -1,12 +1,13 @@
 """Live microphone demo: speak a command, get its tool calls when you stop talking.
 
-Needs sounddevice (`pip install sounddevice`). The microphone stream is split into
-utterances by loudness: one starts when the input gets louder than a threshold set from
-the room's background level, and ends after a short pause. Each utterance goes to the
-model as soon as it ends. This gate matters: the model produces a call even for noise.
+Needs sounddevice, which `uv run --with sounddevice` supplies. The microphone stream is
+split into utterances by loudness: one starts when the input gets louder than a threshold
+set from the room's background level, and ends after a short pause. Each utterance goes
+to the model as soon as it ends. This gate matters: the model produces a call even for
+noise.
 
-    python examples/realtime_example.py                      # microphone
-    python examples/realtime_example.py --wav command.wav    # a WAV file in place of the mic
+    uv run --with sounddevice examples/realtime_example.py                    # microphone
+    uv run --with sounddevice examples/realtime_example.py --wav command.wav  # a WAV file
 """
 
 import json
@@ -198,7 +199,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--device",
         type=lambda s: int(s) if s.isdigit() else s,
-        help="Input device name or index (see `python -m sounddevice`)",
+        help="Input device name or index (list them with `python -m sounddevice`)",
     )
     parser.add_argument(
         "--sample-rate", type=int, help="Capture rate (default: the device's own rate)"

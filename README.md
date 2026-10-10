@@ -12,8 +12,10 @@ NeuDecide converts speech directly into function calls. It's 43 MB, can run on a
 
 ## Installation
 
+Add it to your [uv](https://docs.astral.sh/uv/) project:
+
 ```bash
-pip install neudecide
+uv add neudecide
 ```
 
 Requires Python 3.10 – 3.13. The model weights are downloaded from the Hugging Face Hub on first use and cached after that.
@@ -82,7 +84,7 @@ Output:
 
 `generate` returns a list of `{"name", "arguments"}` dicts, or `[]` when no tool applies. If the answer reaches the 128-token output limit, you get the calls completed before it, with a warning.
 
-A command-line version is in `examples/basic_example.py`. From a clone, `python examples/basic_example.py` runs it on `examples/command.wav` with the tools in `examples/tools.json`; pass `--audio` and `--tools` to use your own.
+A command-line version is in `examples/basic_example.py`. From a clone, `uv run examples/basic_example.py` runs it on `examples/command.wav` with the tools in `examples/tools.json`; pass `--audio` and `--tools` to use your own.
 
 ## Usage
 
@@ -103,11 +105,10 @@ Each tool has a `name`, a `description`, and `parameters` as a JSON Schema objec
 
 ### Live microphone
 
-`examples/realtime_example.py` listens to your microphone and prints the tool calls for each command as soon as you stop talking. It needs [sounddevice](https://python-sounddevice.readthedocs.io/):
+`examples/realtime_example.py` listens to your microphone and prints the tool calls for each command as soon as you stop talking. It needs [sounddevice](https://python-sounddevice.readthedocs.io/), which `uv run --with` supplies without adding it to the project:
 
 ```bash
-pip install sounddevice
-python examples/realtime_example.py
+uv run --with sounddevice examples/realtime_example.py
 ```
 
 It first measures the background noise for a second, so stay quiet until it says it's listening. Then speak a command, such as "clean the kitchen". Press Ctrl+C to stop.
@@ -120,7 +121,7 @@ The model takes a whole utterance, so the example splits the microphone stream b
 | `--threshold` | measured at start | Speech isn't picked up (lower it, e.g. `-50`) or noise is (raise it), in dBFS |
 | `--margin` | `12` | The measured threshold needs to sit further above the background (dB) |
 | `--silence-ms` | `500` | Commands get cut off mid-sentence (raise it) |
-| `--device` | system default | You want another input (an index or name from `python -m sounddevice`) |
+| `--device` | system default | You want another input (an index or name from `uv run --with sounddevice python -m sounddevice`) |
 | `--wav` | | You want to test without a microphone: a WAV file goes through the same pipeline |
 
 ## How it works
@@ -187,9 +188,9 @@ Test it on your own tools and your users' voices before deploying. NeuDecide wor
 ## Development
 
 ```bash
-pip install -e . -r requirements-dev.txt
-pre-commit install
-pytest -m "not slow"   # "slow" tests download the model from the Hub
+uv sync                         # creates .venv with the package and the dev group
+uv run pre-commit install
+uv run pytest -m "not slow"     # "slow" tests download the model from the Hub
 ```
 
 ## Acknowledgements
